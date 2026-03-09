@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { FileText, Play, Pause, SkipForward, SkipBack, Upload, Volume2, Loader2, Trash2, Headphones } from 'lucide-react';
+import { FileText, Play, Pause, SkipForward, SkipBack, Upload, Volume2, Loader2, Trash2, Headphones, Bookmark, BookmarkPlus, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { extractTextFromPdf } from './lib/pdf';
 import { generateSpeech, chunkText } from './lib/gemini';
@@ -24,6 +24,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [bookmarks, setBookmarks] = useState<{ index: number; text: string }[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -139,11 +140,24 @@ export default function App() {
     setCurrentChunkIndex(0);
     setIsPlaying(false);
     setAudioUrl(null);
+    setBookmarks([]);
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.src = '';
     }
   };
+
+  const toggleBookmark = () => {
+    const exists = bookmarks.find(b => b.index === currentChunkIndex);
+    if (exists) {
+      setBookmarks(bookmarks.filter(b => b.index !== currentChunkIndex));
+    } else {
+      const snippet = chunks[currentChunkIndex].substring(0, 60) + "...";
+      setBookmarks([...bookmarks, { index: currentChunkIndex, text: snippet }]);
+    }
+  };
+
+  const isBookmarked = bookmarks.some(b => b.index === currentChunkIndex);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8 bg-zinc-950 selection:bg-emerald-500/30">
@@ -254,24 +268,36 @@ export default function App() {
                     <SkipBack className="w-6 h-6" />
                   </button>
 
-                  <button 
-                    onClick={togglePlay}
-                    disabled={isExtracting || chunks.length === 0 || isLoading}
-                    className={cn(
-                      "w-20 h-20 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300",
-                      isPlaying 
-                        ? "bg-zinc-100 text-zinc-950 scale-110" 
-                        : "bg-emerald-500 text-zinc-950 hover:scale-105 shadow-emerald-500/20"
-                    )}
-                  >
-                    {isLoading ? (
-                      <Loader2 className="w-8 h-8 animate-spin" />
-                    ) : isPlaying ? (
-                      <Pause className="w-8 h-8 fill-current" />
-                    ) : (
-                      <Play className="w-8 h-8 fill-current ml-1" />
-                    )}
-                  </button>
+                  <div className="relative">
+                    <button 
+                      onClick={togglePlay}
+                      disabled={isExtracting || chunks.length === 0 || isLoading}
+                      className={cn(
+                        "w-20 h-20 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300",
+                        isPlaying 
+                          ? "bg-zinc-100 text-zinc-950 scale-110" 
+                          : "bg-emerald-500 text-zinc-950 hover:scale-105 shadow-emerald-500/20"
+                      )}
+                    >
+                      {isLoading ? (
+                        <Loader2 className="w-8 h-8 animate-spin" />
+                      ) : isPlaying ? (
+                        <Pause className="w-8 h-8 fill-current" />
+                      ) : (
+                        <Play className="w-8 h-8 fill-current ml-1" />
+                      )}
+                    </button>
+                    
+                    <button 
+                      onClick={toggleBookmark}
+                      className={cn(
+                        "absolute -top-2 -right-2 w-10 h-10 rounded-full flex items-center justify-center border-2 border-zinc-950 transition-all duration-300",
+                        isBookmarked ? "bg-amber-500 text-zinc-950" : "bg-zinc-800 text-zinc-400 hover:text-zinc-100"
+                      )}
+                    >
+                      {isBookmarked ? <Bookmark className="w-5 h-5 fill-current" /> : <BookmarkPlus className="w-5 h-5" />}
+                    </button>
+                  </div>
 
                   <button 
                     onClick={handleNext}
@@ -296,6 +322,48 @@ export default function App() {
                   </div>
                 </div>
               </div>
+
+              {/* Bookmarks List */}
+              {bookmarks.length > 0 && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="w-full space-y-4 pt-4 border-t border-zinc-900"
+                >
+                  <h3 className="text-sm font-mono text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                    <Bookmark className="w-4 h-4" /> Marcadores
+                  </h3>
+                  <div className="grid grid-cols-1 gap-2">
+                    {bookmarks.map((b) => (
+                      <button
+                        key={b.index}
+                        onClick={() => {
+                          setCurrentChunkIndex(b.index);
+                          setAudioUrl(null);
+                        }}
+                        className={cn(
+                          "flex items-center justify-between p-4 rounded-2xl border transition-all text-left group",
+                          currentChunkIndex === b.index 
+                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500" 
+                            : "bg-zinc-900/30 border-zinc-800 text-zinc-400 hover:border-zinc-700"
+                        )}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-xs font-mono opacity-50">#{b.index + 1}</span>
+                          <p className="text-sm truncate">{b.text}</p>
+                        </div>
+                        <X 
+                          className="w-4 h-4 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setBookmarks(bookmarks.filter(bm => bm.index !== b.index));
+                          }}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
