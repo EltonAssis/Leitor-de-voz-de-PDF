@@ -1,7 +1,5 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
 function createWavHeader(pcmDataLength: number, sampleRate: number = 24000): Uint8Array {
   const header = new ArrayBuffer(44);
   const view = new DataView(header);
@@ -31,6 +29,13 @@ function createWavHeader(pcmDataLength: number, sampleRate: number = 24000): Uin
 
 export async function generateSpeech(text: string, voice: 'Puck' | 'Charon' | 'Kore' | 'Fenrir' | 'Zephyr' = 'Kore'): Promise<string | null> {
   try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || apiKey === 'MY_GEMINI_API_KEY' || apiKey === 'undefined') {
+      console.error("GEMINI_API_KEY is not set or invalid.");
+      return null;
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: `Leia o seguinte texto em português de forma clara, natural e pausada: ${text}` }] }],

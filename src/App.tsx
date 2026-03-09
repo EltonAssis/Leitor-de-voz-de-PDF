@@ -61,6 +61,13 @@ export default function App() {
     }
 
     setIsLoading(true);
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || apiKey === 'MY_GEMINI_API_KEY' || apiKey === 'undefined') {
+      setIsLoading(false);
+      alert("Chave de API do Gemini não configurada. Se você estiver usando o Netlify, adicione GEMINI_API_KEY às variáveis de ambiente.");
+      return;
+    }
+
     const audio = await generateSpeech(chunks[currentChunkIndex], voice);
     setIsLoading(false);
 
